@@ -6,6 +6,6 @@
 int main(int argc, char const *argv[])
 {
 	int portNo = findHTTPport(argc, argv);
-	listen(portNo);
+	runServer(portNo);
 	return EXIT_SUCCESS;
 }
