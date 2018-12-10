@@ -59,44 +59,51 @@ SocketStruct createListeningSocket(int portNo){
 
 
 void serveRequests(SocketStruct *listening_socket){
-	// accept connection
-	int accepting_socket_fd;
-	if ((accepting_socket_fd = accept(listening_socket->fd,
-		                              (struct sockaddr *) &(listening_socket->address),  
-                                      (socklen_t*) &(listening_socket->addrlen)))<0) 
-    { 
-        perror("accept"); 
-        exit(EXIT_FAILURE); 
-    }
+	int inParent = 1;
+	int nbConnection = 0;
+	while(inParent)
+	{
+		// accept connection
+		int accepting_socket_fd;
+		if ((accepting_socket_fd = accept(listening_socket->fd,
+			                              (struct sockaddr *) &(listening_socket->address),  
+	                                      (socklen_t*) &(listening_socket->addrlen)))<0) 
+	    { 
+	        perror("accept"); 
+	        exit(EXIT_FAILURE); 
+	    }
 
-    // create pipes parent <-> child
-    int pipefdToChild[2], pipefdToParent[2];
-    if (pipe(pipefdToChild) != 0)
-    {
-    	perror("pipe:");
-		exit(EXIT_FAILURE);
+	    // create pipes parent <-> child
+	    int pipefdToChild[2], pipefdToParent[2];
+	    if (pipe(pipefdToChild) != 0)
+	    {
+	    	perror("pipe:");
+			exit(EXIT_FAILURE);
 
-    }
-    if (pipe(pipefdToParent) != 0)
-    {
-    	perror("pipe:");
-		exit(EXIT_FAILURE);
+	    }
+	    if (pipe(pipefdToParent) != 0)
+	    {
+	    	perror("pipe:");
+			exit(EXIT_FAILURE);
 
-    }
+	    }
 
-    // create child process
-    int pid = createProcess();
-    switch (pid) {
-		case 0:
-			close(pipefdToChild[1]);
-			close(pipefdToParent[0]);
-			childProcess(pipefdToChild, pipefdToParent);
-			break;
-		default:
-			close(pipefdToChild[0]);
-			close(pipefdToParent[1]);
-			parentProcess(accepting_socket_fd, pipefdToChild, pipefdToParent);
-			break;
+	    // create child process
+	    int pid = createProcess();
+	    switch (pid) {
+			case 0:
+				close(pipefdToChild[1]);
+				close(pipefdToParent[0]);
+				inParent = 0;
+				childProcess(pipefdToChild, pipefdToParent);
+				break;
+			default:
+				close(pipefdToChild[0]);
+				close(pipefdToParent[1]);
+				printf("connection #%i\n", ++nbConnection);
+				parentProcess(accepting_socket_fd, pipefdToChild, pipefdToParent);
+				break;
+		}
 	}
 }
 
