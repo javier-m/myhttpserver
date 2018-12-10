@@ -8,8 +8,22 @@
 int findHTTPport(int argc, const char *argv[]){
 	if (argc == 1)
 	{
-		printf("myhttpserver -p portNo\n");
-		exit(EXIT_SUCCESS);
+		return DEFAULT_PORT;
+	}
+	if (argc == 2)
+	{
+		if (!strcmp(argv[1], "-h") || !strcmp(argv[1], "--help"))
+		{
+			printf("myhttpserver [-h]\n"
+				   "myhttpserver [-p portNo]\n"
+				   "myhttpserver with no arguments launch the server on port %i\n", DEFAULT_PORT);
+			exit(EXIT_SUCCESS);
+		} else
+		{
+			fprintf(stderr,
+			        "wrong arguments: type `myhttpserver -h` to get help\n");
+			exit(EXIT_FAILURE);
+		}
 	}
 	if (argc !=3)
 	{

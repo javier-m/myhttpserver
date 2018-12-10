@@ -1,9 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
+#include <sys/wait.h>
 #include <netinet/in.h>
 #include <unistd.h>
 #include <string.h>
+#include <errno.h>
 
 #include "connectionHTTP.h"
 
@@ -25,15 +27,15 @@ SocketStruct createListeningSocket(int portNo){
         perror("socket failed"); 
         exit(EXIT_FAILURE); 
     }
-	 // Forcefully attaching socket to the port `portNo` 
-    // if (setsockopt(listening_socket.fd,
-    // 	           SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, 
-    //                &opt,
-    //                sizeof(opt))) 
-    // { 
-    //     perror("setsockopt"); 
-    //     exit(EXIT_FAILURE); 
-    // } 
+	// Forcefully attaching socket to the port `portNo` 
+    if (setsockopt(listening_socket.fd,
+    	           SOL_SOCKET, SO_REUSEPORT, 
+                   &opt,
+                   sizeof(opt))) 
+    { 
+        perror("setsockopt"); 
+        exit(EXIT_FAILURE); 
+    } 
     listening_socket.address.sin_family = AF_INET; 
     listening_socket.address.sin_addr.s_addr = INADDR_ANY; 
     listening_socket.address.sin_port = htons(portNo);
@@ -57,8 +59,8 @@ SocketStruct createListeningSocket(int portNo){
 
 
 void serveRequests(SocketStruct *listening_socket){
+	// accept connection
 	int accepting_socket_fd;
-	ssize_t nbBytesRead;
 	if ((accepting_socket_fd = accept(listening_socket->fd,
 		                              (struct sockaddr *) &(listening_socket->address),  
                                       (socklen_t*) &(listening_socket->addrlen)))<0) 
@@ -66,13 +68,71 @@ void serveRequests(SocketStruct *listening_socket){
         perror("accept"); 
         exit(EXIT_FAILURE); 
     }
-    char buffer[BUFFER_SIZE] = {0}, *reply = "Hello World";
-    // TODO
-    // not thread safe!!! printf could be interleaved
-    // should work by chunks of BUFFER_SIZE
-    // connect to stdin/stdout of another application
-    nbBytesRead = read(accepting_socket_fd, buffer, BUFFER_SIZE); 
-    printf(">>> INCOMING REQUEST:\n%s\n\n", buffer); 
-    send(accepting_socket_fd , reply , strlen(reply) , 0); 
-    printf("<<< REPLY SENT:\n%s\n\n", reply);
+
+    // create pipes parent <-> child
+    int pipefdToChild[2], pipefdToParent[2];
+    if (pipe(pipefdToChild) != 0)
+    {
+    	perror("pipe:");
+		exit(EXIT_FAILURE);
+
+    }
+    if (pipe(pipefdToParent) != 0)
+    {
+    	perror("pipe:");
+		exit(EXIT_FAILURE);
+
+    }
+
+    // create child process
+    int pid = createProcess();
+    switch (pid) {
+		case 0:
+			close(pipefdToChild[1]);
+			close(pipefdToParent[0]);
+			childProcess(pipefdToChild, pipefdToParent);
+			break;
+		default:
+			close(pipefdToChild[0]);
+			close(pipefdToParent[1]);
+			parentProcess(accepting_socket_fd, pipefdToChild, pipefdToParent);
+			break;
+	}
+}
+
+
+int createProcess(void){
+	int pid;
+	do
+		pid = (int) fork();
+	while(pid == -1 && errno == EAGAIN);
+	if(pid == -1 && errno != EAGAIN)
+	{
+		perror("fork:");
+		exit(EXIT_FAILURE);
+	}
+	return pid;
+}
+
+
+void parentProcess(int accepting_socket_fd, int pipefdToChild[2], int pipefdToParent[2]){
+    /*TODO
+    not thread safe!!! printf could be interleaved
+    should work by chunks of BUFFER_SIZE
+    connect to stdin/stdout of another application*/
+    // get request
+    char request[BUFFER_SIZE] = {0};
+    read(accepting_socket_fd, request, BUFFER_SIZE);
+    write(pipefdToChild[1], request, BUFFER_SIZE);
+    // get reply
+    char reply[BUFFER_SIZE] = {0};
+    int nbBytesRead;
+    nbBytesRead = read(pipefdToParent[0], reply, BUFFER_SIZE);
+    send(accepting_socket_fd, reply, nbBytesRead, 0); 
+    int childStatus;
+    if (wait(&childStatus) == -1)
+    {
+		perror("wait:");
+		exit(EXIT_FAILURE);
+    }
 }

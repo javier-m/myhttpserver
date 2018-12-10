@@ -17,6 +17,9 @@ typedef struct {
 void runServer(int portNo);
 SocketStruct createListeningSocket(int portNo);
 void serveRequests(SocketStruct *listening_socket);
+int createProcess(void);
+void parentProcess(int accepting_socket_fd, int pipefdToChild[2], int pipefdToParent[2]);
+void childProcess(int pipefdToChild[2], int pipefdToParent[2]);
 
 
 #endif
