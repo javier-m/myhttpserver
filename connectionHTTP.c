@@ -7,13 +7,14 @@
 #include <string.h>
 #include <errno.h>
 
+#include "parseArgs.h"
 #include "connectionHTTP.h"
 
 
-void runServer(int portNo){
-	SocketStruct listening_socket = createListeningSocket(portNo);
-	printf("listening on 0.0.0.0:%i...\n\n", portNo);
-	serveRequests(&listening_socket);
+void runServer(Args args){
+	SocketStruct listening_socket = createListeningSocket(args.portNo);
+	printf("listening on 0.0.0.0:%i...\n\n", args.portNo);
+	serveRequests(&listening_socket, args.cmd);
 }
 
 
@@ -58,7 +59,7 @@ SocketStruct createListeningSocket(int portNo){
 }
 
 
-void serveRequests(SocketStruct *listening_socket){
+void serveRequests(SocketStruct *listening_socket, Cmd cmd){
 	int inParent = 1;
 	int nbConnection = 0;
 	while(inParent)
@@ -95,7 +96,7 @@ void serveRequests(SocketStruct *listening_socket){
 				close(pipefdToChild[1]);
 				close(pipefdToParent[0]);
 				inParent = 0;
-				childProcess(pipefdToChild, pipefdToParent);
+				childProcess(cmd, pipefdToChild, pipefdToParent);
 				break;
 			default:
 				close(pipefdToChild[0]);
@@ -131,10 +132,12 @@ void parentProcess(int accepting_socket_fd, int pipefdToChild[2], int pipefdToPa
     char request[BUFFER_SIZE] = {0};
     read(accepting_socket_fd, request, BUFFER_SIZE);
     write(pipefdToChild[1], request, BUFFER_SIZE);
+    close(pipefdToChild[1]);
     // get reply
     char reply[BUFFER_SIZE] = {0};
     int nbBytesRead;
     nbBytesRead = read(pipefdToParent[0], reply, BUFFER_SIZE);
+    close(pipefdToParent[0]);
     send(accepting_socket_fd, reply, nbBytesRead, 0); 
     int childStatus;
     if (wait(&childStatus) == -1)

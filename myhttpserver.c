@@ -5,7 +5,7 @@
 
 int main(int argc, char const *argv[])
 {
-	int portNo = findHTTPport(argc, argv);
-	runServer(portNo);
+	Args args = parseArgs(argc, argv);
+	runServer(args);
 	return EXIT_SUCCESS;
 }

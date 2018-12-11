@@ -5,40 +5,40 @@
 
 #include "parseArgs.h"
 
-int findHTTPport(int argc, const char *argv[]){
+Args parseArgs(int argc, const char *argv[]){
+	Args args;
 	if (argc == 1)
 	{
-		return DEFAULT_PORT;
+		args.portNo = DEFAULT_PORT;
+		args.cmd = parseCmd(argc, 2, argv);
+		return args;
 	}
-	if (argc == 2)
+	if ((argc == 2) && (!strcmp(argv[1], "-h") || !strcmp(argv[1], "--help")))
 	{
-		if (!strcmp(argv[1], "-h") || !strcmp(argv[1], "--help"))
-		{
-			printf("myhttpserver [-h]\n"
-				   "myhttpserver [-p portNo]\n"
-				   "myhttpserver with no arguments launch the server on port %i\n", DEFAULT_PORT);
-			exit(EXIT_SUCCESS);
-		} else
-		{
-			fprintf(stderr,
-			        "wrong arguments: type `myhttpserver -h` to get help\n");
-			exit(EXIT_FAILURE);
-		}
+		printf("myhttpserver [-h]\n"
+			   "myhttpserver [-p portNo][cmd]\n"
+			   "myhttpserver with no arguments launch the server on port %i\n"
+			   "with default command `python3 default.py`\n"
+			   "`cmd` must be an installed binary accessible with `/usr/bin/env` with additional parameters\n"
+			   "it should accept http request on its `stdin` and output http response on its `stdout`\n",
+			   DEFAULT_PORT);
+		exit(EXIT_SUCCESS);
 	}
-	if (argc !=3)
+	if (!strcmp(argv[1], "-p"))
 	{
-		fprintf(stderr,
-			   "wrong number of arguments: "
-			   "2 expected, %i received\n", argc - 1);
-		exit(EXIT_FAILURE);
+		args.portNo = findTCPPort((char *) argv[2]);
+		args.cmd = parseCmd(argc, 3, argv);
+		return args;
 	}
-	if ((int) strlen(argv[1]) > 2 || strncmp(argv[1], "-p", 2))
-	{
-		fprintf(stderr,
-			   "the first argument should be the flag `-p`\n");
-		exit(EXIT_FAILURE);
-	}
-	char *c = (char *) *(argv+2);
+	args.portNo = DEFAULT_PORT;
+	args.cmd = parseCmd(argc, 1, argv);
+	return args;
+}
+
+
+int findTCPPort(char *c){
+	int portNo;
+	char *i = c;
 	while (*c != '\0')
 	{
 		if (!isdigit(*c))
@@ -50,13 +50,41 @@ int findHTTPport(int argc, const char *argv[]){
 		}
 		c += 1;
 	}
-	if (atoi(argv[2]) < MIN_PORT_NO \
-		&& atoi(argv[2]) > MAX_PORT_NO)
+	portNo = atoi(i);
+	if (portNo < MIN_PORT_NO && portNo > MAX_PORT_NO)
 	{
 		fprintf(stderr,
 			   "the second argument should be an integer"
 			   "in the range %i-%i\n", MIN_PORT_NO, MAX_PORT_NO);
 		exit(EXIT_FAILURE);
 	}
-	return atoi(argv[2]);
+	return portNo;
+}
+
+
+Cmd parseCmd(int argc, int argStart, const char *argv[])
+{
+	Cmd cmd;
+	int i_argc=argc, i_start=argStart;
+	char **cmdArgs=(char **) argv, *defaultCmdArgs[] = DEFAULT_CMD_ARGS;
+	if (argStart >= argc)
+	{
+		i_argc = 2;
+		i_start = 0;
+		cmdArgs = defaultCmdArgs;
+	}
+	cmd.nbCmdArgs = i_argc - i_start + 2;
+	cmd.cmdArgs = (char **) malloc(cmd.nbCmdArgs);
+	char *cmdArg, *env = "env";
+	cmdArg = (char *) malloc(strlen(env) + 1);
+	strncpy(cmdArg, env, strlen(env) + 1);
+	*(cmd.cmdArgs) = cmdArg;
+	for (int i=i_start; i<i_argc; ++i)
+	{
+		cmdArg = (char *) malloc(strlen(cmdArgs[i]) + 1);
+		strncpy(cmdArg, cmdArgs[i], strlen(cmdArgs[i]) + 1);
+		*(cmd.cmdArgs+i+1-i_start) = cmdArg;
+	}
+	*(cmd.cmdArgs+cmd.nbCmdArgs-1) = NULL;
+	return cmd;
 }
