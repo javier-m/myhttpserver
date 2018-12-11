@@ -6,9 +6,17 @@
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
+#include <pthread.h>
 
 #include "parseArgs.h"
 #include "connectionHTTP.h"
+
+
+int nbThreads = 0, runningThreads[MAX_NB_THREADS] = {0};
+pthread_t servingThread[MAX_NB_THREADS];
+ThreadArgs *threadArgs[MAX_NB_THREADS];
+pthread_mutex_t mutexCountThread = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t condThreadOver = PTHREAD_COND_INITIALIZER;
 
 
 void runServer(Args args){
@@ -60,12 +68,17 @@ SocketStruct createListeningSocket(int portNo){
 
 
 void serveRequests(SocketStruct *listening_socket, Cmd cmd){
-	int inParent = 1;
-	int nbConnection = 0;
-	while(inParent)
+	int accepting_socket_fd;
+	int thread_id = 0;
+	while(1)
 	{
-		// accept connection
-		int accepting_socket_fd;
+		// accept connection if fewer than MAX_NB_THREADS
+		pthread_mutex_lock(&mutexCountThread);
+		if (nbThreads > MAX_NB_THREADS)
+		{
+			pthread_cond_wait(&condThreadOver, &mutexCountThread);
+		}
+		pthread_mutex_unlock(&mutexCountThread);
 		if ((accepting_socket_fd = accept(listening_socket->fd,
 			                              (struct sockaddr *) &(listening_socket->address),  
 	                                      (socklen_t*) &(listening_socket->addrlen)))<0) 
@@ -73,39 +86,67 @@ void serveRequests(SocketStruct *listening_socket, Cmd cmd){
 	        perror("accept"); 
 	        exit(EXIT_FAILURE); 
 	    }
-
-	    // create pipes parent <-> child
-	    int pipefdToChild[2], pipefdToParent[2];
-	    if (pipe(pipefdToChild) != 0)
+	    while(runningThreads[thread_id])
 	    {
-	    	perror("pipe:");
-			exit(EXIT_FAILURE);
-
+	    	thread_id++;
 	    }
-	    if (pipe(pipefdToParent) != 0)
+	    printf("accepting connection\n");
+	    runningThreads[thread_id] = 1;
+	    threadArgs[thread_id] = (ThreadArgs *) malloc(sizeof(ThreadArgs));
+		threadArgs[thread_id]->thread_id = thread_id;
+		threadArgs[thread_id]->accepting_socket_fd = accepting_socket_fd;
+		threadArgs[thread_id]->cmd = cmd;
+	    if (pthread_create(&servingThread[thread_id], NULL, serveSingleRequest, threadArgs[thread_id]) == -1)
 	    {
-	    	perror("pipe:");
-			exit(EXIT_FAILURE);
-
+	    	perror("pthread_create");
+	    	exit(EXIT_FAILURE);
 	    }
-
-	    // create child process
-	    int pid = createProcess();
-	    switch (pid) {
-			case 0:
-				close(pipefdToChild[1]);
-				close(pipefdToParent[0]);
-				inParent = 0;
-				childProcess(cmd, pipefdToChild, pipefdToParent);
-				break;
-			default:
-				close(pipefdToChild[0]);
-				close(pipefdToParent[1]);
-				printf("connection #%i\n", ++nbConnection);
-				parentProcess(accepting_socket_fd, pipefdToChild, pipefdToParent);
-				break;
-		}
 	}
+}
+
+
+void *serveSingleRequest(void *args){
+	pthread_mutex_lock(&mutexCountThread);
+	++nbThreads;
+	pthread_mutex_unlock(&mutexCountThread);
+	ThreadArgs *threadArgs = (ThreadArgs *) args;
+	int accepting_socket_fd = threadArgs->accepting_socket_fd;
+	Cmd cmd = threadArgs->cmd;
+    // create pipes parent <-> child
+    int pipefdToChild[2], pipefdToParent[2];
+    if (pipe(pipefdToChild) != 0)
+    {
+    	perror("pipe:");
+		exit(EXIT_FAILURE);
+
+    }
+    if (pipe(pipefdToParent) != 0)
+    {
+    	perror("pipe:");
+		exit(EXIT_FAILURE);
+    }
+
+    // create child process
+    int pid = createProcess();
+    switch (pid) {
+		case 0:
+			close(pipefdToChild[1]);
+			close(pipefdToParent[0]);
+			childProcess(cmd, pipefdToChild, pipefdToParent);
+			break;
+		default:
+			close(pipefdToChild[0]);
+			close(pipefdToParent[1]);
+			parentProcess(accepting_socket_fd, pipefdToChild, pipefdToParent);
+			break;
+	}
+	pthread_mutex_lock(&mutexCountThread);
+	--nbThreads;
+	runningThreads[threadArgs->thread_id] = 0;
+	free(args);
+	pthread_cond_signal(&condThreadOver);
+	pthread_mutex_unlock(&mutexCountThread);
+	pthread_exit(NULL);
 }
 
 
