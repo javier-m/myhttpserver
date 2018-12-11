@@ -18,7 +18,7 @@ Args parseArgs(int argc, const char *argv[]){
 		printf("myhttpserver [-h]\n"
 			   "myhttpserver [-p portNo][cmd]\n"
 			   "myhttpserver with no arguments launch the server on port %i\n"
-			   "with default command `python3 default.py`\n"
+			   "with default command `python3 example/example.py`\n"
 			   "`cmd` must be an installed binary accessible with `/usr/bin/env` with additional parameters\n"
 			   "it should accept http request on its `stdin` and output http response on its `stdout`\n",
 			   DEFAULT_PORT);

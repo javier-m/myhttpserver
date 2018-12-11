@@ -4,7 +4,7 @@
 #define MIN_PORT_NO 1
 #define MAX_PORT_NO ((1<<16) - 1)
 #define DEFAULT_PORT 8080
-#define DEFAULT_CMD_ARGS {"python3", "default.py"}
+#define DEFAULT_CMD_ARGS {"python3", "example/example.py"}
 
 
 typedef struct
