@@ -86,7 +86,7 @@ void serveRequests(SocketStruct *listening_socket, Cmd cmd){
 	        perror("accept"); 
 	        exit(EXIT_FAILURE); 
 	    }
-	    while(runningThreads[thread_id])
+	    while(runningThreads[thread_id %= MAX_NB_THREADS])
 	    {
 	    	thread_id++;
 	    }
