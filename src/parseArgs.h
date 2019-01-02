@@ -20,7 +20,7 @@ typedef struct
 } Args;
 
 Args parseArgs(int argc, const char *argv[]);
-int findTCPPort(char *c);
+int parseTCPPort(char *c);
 Cmd parseCmd(int argc, int argStart, const char *argv[]);
 
 #endif

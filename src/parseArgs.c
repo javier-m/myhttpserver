@@ -26,7 +26,7 @@ Args parseArgs(int argc, const char *argv[]){
 	}
 	if (!strcmp(argv[1], "-p"))
 	{
-		args.portNo = findTCPPort((char *) argv[2]);
+		args.portNo = parseTCPPort((char *) argv[2]);
 		args.cmd = parseCmd(argc, 3, argv);
 		return args;
 	}
@@ -36,7 +36,7 @@ Args parseArgs(int argc, const char *argv[]){
 }
 
 
-int findTCPPort(char *c){
+int parseTCPPort(char *c){
 	int portNo;
 	char *i = c;
 	while (*c != '\0')

@@ -86,10 +86,13 @@ void serveRequests(SocketStruct *listening_socket, Cmd cmd){
 	        perror("accept"); 
 	        exit(EXIT_FAILURE); 
 	    }
+	    pthread_mutex_lock(&mutexCountThread);
 	    while(runningThreads[thread_id %= MAX_NB_THREADS])
 	    {
 	    	thread_id++;
 	    }
+		++nbThreads;
+		pthread_mutex_unlock(&mutexCountThread);
 	    printf("accepting connection\n");
 	    runningThreads[thread_id] = 1;
 	    threadArgs[thread_id] = (ThreadArgs *) malloc(sizeof(ThreadArgs));
@@ -106,9 +109,6 @@ void serveRequests(SocketStruct *listening_socket, Cmd cmd){
 
 
 void *serveSingleRequest(void *args){
-	pthread_mutex_lock(&mutexCountThread);
-	++nbThreads;
-	pthread_mutex_unlock(&mutexCountThread);
 	ThreadArgs *threadArgs = (ThreadArgs *) args;
 	int accepting_socket_fd = threadArgs->accepting_socket_fd;
 	Cmd cmd = threadArgs->cmd;
